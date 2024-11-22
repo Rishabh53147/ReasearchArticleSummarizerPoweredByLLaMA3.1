@@ -26,8 +26,8 @@ The dataset that we have used to the LLM model is the mirror dataset of arXiv av
 Dataset -- [https://www.kaggle.com/datasets/Cornell-University/arxiv]
 
 ## Requirements
-Backend -- [package.json]
-frontend -- [src/package.json]
+Backend -- [package.json] <br />
+frontend -- [src/package.json] <br />
 Packages --
 ```sh
 conda install transformers pytorch flask
