@@ -10,8 +10,7 @@ Following project is our team's final year project for bachelor degree in comput
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
-- [Demonstration](#Demonstration)
-- [Progress-table](#Progress-Table)
+
 
 ## Introduction
 We're developing this project for the purpose of making it less time consuming and efficient for students and scholars alike to do reasearch survey over scientific articles. We as students always have multiple projects each semester that have a tight deadline, to do these projects we ofcourse need to do proper research in the field on which the project is based. Reading research article and analysing their findings. this task of survey 10 to 50 papers is a very time consuming method especially for students who need to repeat it for multiple projects. Hence why we introduce this application that makes it easier for articles to be summarized and shown in a efficient manner that can make it easier for the user to analyse and generate inference from them.
@@ -19,19 +18,12 @@ We're developing this project for the purpose of making it less time consuming a
 ## Model
 The model is the backbone of this project and is used to summarize the main article. The model we have choosen for this project is LLaMA 3.1 (as of current development). We had compared multiple models over our dataset to see which one produces the most cohesive results. We have specifically choosen LLaMA 3.1-8B-instruct which can be fine tuned to give the result that we desire without the need of further prompting.
 LLaMA -- [https://ai.meta.com/blog/meta-llama-3-1/]
-Our Comparative Analysis of various Models -- Paper not yet Published
+Our Comparative Analysis of various Models -- FNTCT - 06
 
 ## Dataset
 The dataset that we have used to the LLM model is the mirror dataset of arXiv available on kaggle. arXiv is a free, open-access repository of scientific research papers, it is a collection of early versions of research papers that are not yet peer-reviewed or published in journals. It covers a wide range of scientific disciplines such as Physics, Mathematics and Computer Science. The dataset is a collection of 7.1 B+ english articles and it includes fields such as the paper's ID, submitter, authors, title, and comments.
 Dataset -- [https://www.kaggle.com/datasets/Cornell-University/arxiv]
 
-## Requirements
-Backend -- [package.json] <br />
-frontend -- [src/package.json] <br />
-Packages --
-```sh
-conda install transformers pytorch flask
-```
 
 ## Installation
 ```sh
@@ -42,13 +34,9 @@ cd ReasearchArticleSummarizerPoweredByLLaMA3.1
 ## Usage
 step - 1
 ```sh
-python summarizer.py
-```
-step - 2
-```sh
 node server.js
 ```
-step - 3
+step - 2
 ```sh
 npm start
 ```
