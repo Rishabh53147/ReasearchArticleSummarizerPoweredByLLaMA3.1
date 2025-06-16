@@ -2,104 +2,149 @@ const express = require('express');
 const axios = require('axios');
 const xml2js = require('xml2js');
 const cors = require('cors');
-const { exec } = require('child_process');  // Import exec for running shell commands
+const { execFile } = require('child_process');
 
 const app = express();
-
-// Middleware
 app.use(express.json());
 app.use(cors());
 
-// Category List (Custom Strings Provided)
-const categories = [
-    'astro-ph', 'cond-mat', 'cs', 'cs.AI', 'cs.CV', 'cs.CL', 'cs.CR', 'cs.DS',
-    'cs.DB', 'cs.LG', 'cs.NI', 'cs.OH', 'cs.PF', 'cs.SE', 'cs.SI', 'cs.IT',
-    'math', 'math.AG', 'math.CO', 'math.GM', 'math.GR', 'math.HO', 'math.KT',
-    'math.NT', 'math.PR', 'math.RA', 'math.ST', 'nlin', 'nlin.CD', 'nlin.PS',
-    'nucl-th', 'physics', 'physics.acc-ph', 'physics.ao-ph', 'physics.app-ph',
-    'physics.atm-clus', 'physics.gen-ph', 'physics.optics', 'q-bio', 'q-fin', 'stat'
-];
+// Category Name Mapping
+const categoryNames = {
+    'astro-ph': 'Astrophysics',
+    'cond-mat': 'Condensed Matter',
+    'cs.AI': 'Computer Science - Artificial Intelligence',
+    'cs.CV': 'Computer Science - Computer Vision',
+    'cs.CL': 'Computer Science - Computational Linguistics',
+    'cs.CR': 'Computer Science - Cryptography and Security',
+    'cs.DS': 'Computer Science - Data Structures and Algorithms',
+    'cs.DB': 'Computer Science - Databases',
+    'cs.LG': 'Computer Science - Machine Learning',
+    'cs.NI': 'Computer Science - Networking and Internet Architecture',
+    'cs.OH': 'Computer Science - Other',
+    'cs.PF': 'Computer Science - Performance',
+    'cs.SE': 'Computer Science - Software Engineering',
+    'cs.SI': 'Computer Science - Social and Information Networks',
+    'cs.IT': 'Computer Science - Information Theory',
+    'math.AG': 'Mathematics - Algebraic Geometry',
+    'math.CO': 'Mathematics - Combinatorics',
+    'math.GM': 'Mathematics - General Mathematics',
+    'math.GR': 'Mathematics - Group Theory',
+    'math.HO': 'Mathematics - History and Overview',
+    'math.KT': 'Mathematics - K-Theory and Homotopy Theory',
+    'math.NT': 'Mathematics - Number Theory',
+    'math.PR': 'Mathematics - Probability',
+    'math.RA': 'Mathematics - Rings and Algebras',
+    'math.ST': 'Mathematics - Statistics Theory',
+    'nlin.CD': 'Nonlinear Sciences - Chaotic Dynamics',
+    'nlin.PS': 'Nonlinear Sciences - Pattern Formation and Solitons',
+    'nucl-th': 'Nuclear Theory',
+    'physics.acc-ph': 'Physics - Accelerator Physics',
+    'physics.ao-ph': 'Physics - Atmospheric and Oceanic Physics',
+    'physics.app-ph': 'Physics - Applied Physics',
+    'physics.atm-clus': 'Physics - Atomic and Molecular Clusters',
+    'physics.gen-ph': 'Physics - General Physics',
+    'physics.optics': 'Physics - Optics',
+    'q-bio': 'Quantitative Biology',
+    'q-fin': 'Quantitative Finance',
+    'stat': 'Statistics'
+};
 
-// Endpoint to get the category list
-app.get('/api/categories', (req, res) => {
-    res.json({ categories });
-});
-
-// Endpoint to search arXiv papers
 app.post('/api/search', async (req, res) => {
     const { keyword, filters } = req.body;
 
-    try {
-        // Query parameters for arXiv API
-        const maxResults = filters.results || 5; // Default to 5 results
-        const yearRange = filters.yearRange || ''; // Optional
-        const category = filters.category || ''; // Optional
-        const firstAuthor = filters.firstAuthor || ''; // Optional
+    console.log('Received request with keyword:', keyword);
+    console.log('Received filters:', filters); // Debugging filter input
 
-        // Build the arXiv API query
+    try {
+        const maxResults = filters?.results || 5;
+        const category = filters?.category || '';
+        const firstAuthor = filters?.firstAuthor || '';
+        const summarize = filters?.summarization ?? true;
+        const applyMMR = filters?.mmr ?? true;
+
         let query = `search_query=all:${keyword}`;
         if (category) query += `+AND+cat:${category}`;
         if (firstAuthor) query += `+AND+au:${firstAuthor}`;
 
-        // Full arXiv API URL
+        console.log('Constructed arXiv query:', query); // Debugging query construction
+
         const url = `http://export.arxiv.org/api/query?${query}&max_results=${maxResults}`;
-
-        // Fetch data from arXiv API
         const response = await axios.get(url);
-        const xmlData = response.data;
 
-        // Parse XML to JSON
         const parser = new xml2js.Parser();
-        parser.parseString(xmlData, (err, result) => {
+        parser.parseString(response.data, (err, result) => {
             if (err) {
-                console.error('Error parsing XML:', err);
-                return res.status(500).json({ error: 'Error parsing XML data' });
+                console.error('XML Parsing Error:', err);
+                return res.status(500).json({ error: 'XML parsing error' });
             }
 
-            // Extract papers
-            const entries = result.feed.entry || [];
-            const papers = entries.map((entry) => ({
-                title: entry.title[0].trim(),
-                author: entry.author[0].name[0],
-                summary: entry.summary[0].trim(),
-                doi: entry.id[0], // The link to the paper
-                category: entry.category?.[0]?.$.term || 'N/A',
-                published: entry.published[0],
-            }));
+            let papers = (result.feed.entry || []).map(entry => {
+                const categoryTag = entry.category?.[0]?.$.term || 'N/A';
+                return {
+                    title: entry.title[0].trim(),
+                    author: entry.author[0].name[0],
+                    summary: entry.summary[0].trim(),
+                    doi: entry.id[0],
+                    category: categoryNames[categoryTag] || categoryTag, // Convert tag to readable name
+                    published: entry.published[0],
+                };
+            });
 
-            // Attempt to run MMR (Maximal Marginal Relevance)
-            try {
-                const queryText = keyword;
-                const summaries = JSON.stringify(papers.map(paper => paper.summary));  // Send summaries as JSON string
+            console.log('Fetched papers:', papers.length); // Debugging paper count
 
-                exec(`python MMR.py "${queryText}" "${summaries}"`, (error, stdout, stderr) => {
-                    if (error) {
-                        console.error(`Error running MMR: ${error.message}`);
-                        // If MMR fails, just send the unmodified papers list
+            if (!summarize) {
+                console.log('Returning raw results'); // Debugging non-summarized response
+                return res.json({ data: papers });
+            }
+            
+            execFile('python', ['SummarizerPegasus.py', JSON.stringify(papers.map(p => p.summary))], (error, stdout) => {
+                if (error) {
+                    console.error(`Summarization Error: ${error.message}`);
+                    return res.json({ data: papers });
+                }
+
+                try {
+                    const summarizedAbstracts = JSON.parse(stdout);
+                    papers.forEach((paper, i) => {
+                        paper.summary = summarizedAbstracts[i] || paper.summary;
+                    });
+
+                    console.log('Summarization complete'); // Debugging summarization step
+
+                    if (!applyMMR) {
+                        console.log('Returning summarized results'); // Debugging MMR step bypass
                         return res.json({ data: papers });
                     }
 
-                    // If MMR runs successfully, handle the ranked papers
-                    const rankedPapers = JSON.parse(stdout); // Assuming MMR outputs JSON of ranked indices
-                    const rankedResults = rankedPapers.map(index => papers[index]);
+                    execFile('python', ['MMR.py', keyword, JSON.stringify(papers.map(p => p.summary))], (mmrError, mmrStdout) => {
+                        if (mmrError) {
+                            console.error(`MMR Error: ${mmrError.message}`);
+                            return res.json({ data: papers });
+                        }
 
-                    // Send ranked papers back to frontend
-                    res.json({ data: rankedResults });
-                });
-            } catch (mmrError) {
-                console.error('MMR execution failed:', mmrError);
-                // If MMR execution fails, send the normal papers
-                res.json({ data: papers });
-            }
+                        try {
+                            const rankedIndices = JSON.parse(mmrStdout);
+                            const rankedResults = rankedIndices.map(index => papers[index]);
+
+                            console.log('MMR ranking applied'); // Debugging MMR step
+                            res.json({ data: rankedResults });
+                        } catch (parseError) {
+                            console.error('MMR Parsing Error:', parseError);
+                            res.json({ data: papers });
+                        }
+                    });
+                } catch (parseError) {
+                    console.error('Summarization Parsing Error:', parseError);
+                    res.json({ data: papers });
+                }
+            });
         });
     } catch (error) {
-        console.error('Error fetching data from arXiv API:', error);
-        res.status(500).json({ error: 'Error fetching data from arXiv API' });
+        console.error('arXiv Fetch Error:', error);
+        res.status(500).json({ error: 'Failed to fetch arXiv data' });
     }
 });
 
-// Start the server
 const PORT = 5000;
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+
